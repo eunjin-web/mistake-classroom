@@ -1,0 +1,121 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>오답 교실 · 핸드폰 설정 안내</title><style>body{font-family:Arial,'Apple SD Gothic Neo',sans-serif;max-width:850px;margin:0 auto;padding:28px 20px;line-height:1.9;background:#f7f7f2;color:#293b35}h1{font-size:28px;line-height:1.4}h2{font-size:21px;margin-top:38px}p,li{font-size:14px}section{background:white;border:1px solid #dce4d5;padding:22px;border-radius:14px;margin:20px 0}a{color:#245c46}code{background:#edf1e6;padding:3px 6px;border-radius:5px}pre{background:#edf1e6;padding:18px;overflow:auto;font-size:12px;line-height:1.6;max-height:500px}button{background:#245c46;border:0;border-radius:7px;color:white;padding:12px 16px;font:inherit;cursor:pointer}.note{background:#e8efdf;padding:16px;border-radius:9px}.small{font-size:12px;color:#73836b}</style></head><body><h1>오답 탐정 사무소<br>핸드폰으로 GitHub 링크 만들기</h1><p class="note"><b>교수님은 앱을 설치하지 않습니다.</b><br>GitHub Pages 링크를 열면 예시 6개와 해설을 로그인 없이 볼 수 있습니다. 실제 풀이 제출과 선생님 점검은 사이트 안에서 로그인하면 됩니다.</p><p>파일은 HTML·CSS·JavaScript와 필요한 라이브러리를 하나에 담은 <code>index.html</code>입니다. 초기 파일은 체험 교실로 작동합니다. 아래 설정을 마치고 연결 정보가 담긴 파일을 다시 업로드해야 여러 기기에서 실제 공유가 됩니다. 기존 Sites 앱의 교실 데이터는 자동으로 옮겨지지 않습니다.</p>
+<section><h2>1. GitHub Pages 주소부터 만들기</h2><ol><li>제공된 <code>index.html</code>을 아이폰의 <b>파일 앱</b>에 저장하세요. 이름은 꼭 <code>index.html</code>로 유지하세요.</li><li>사파리에서 <a href="https://github.com">github.com</a>에 가입 또는 로그인하세요. 메뉴가 안 보이면 브라우저 메뉴에서 <b>데스크톱 웹사이트 요청</b>을 켜세요.</li><li><a href="https://github.com/new">새 저장소 만들기</a>에서 이름을 <code>mistake-classroom</code>처럼 지정하고 <b>Public</b>을 선택하세요. README 추가를 켠 다음 저장소를 만드세요.</li><li>저장소의 <b>Add file → Upload files → choose your files</b>에서 파일 앱의 <code>index.html</code>을 선택하고 <b>Commit changes</b>를 누르세요. 파일이 폴더 안이 아닌 저장소 맨 바깥에 있어야 해요.</li><li><b>Settings → Pages → Build and deployment</b>로 이동하세요. Source는 <b>Deploy from a branch</b>, Branch는 <b>main</b>, 폴더는 <b>/(root)</b>로 선택하고 Save를 누르세요.</li><li>게시가 끝나면 Pages 설정에 나온 주소를 여세요. 주소는 보통 <code>https://아이디.github.io/mistake-classroom/</code> 형태입니다. 이때 예시 6개가 보이면 기본 게시에 성공한 거예요.</li></ol></section>
+<section><h2>2. 공유 저장소 프로젝트 만들기</h2><p><a href="https://supabase.com/dashboard">Supabase</a>에 가입·로그인하고 새 프로젝트를 만드세요. 이 계정은 저장소 관리자 계정이고, 학생이 앱에서 가입하는 계정과는 별개예요. 프로젝트 생성 시 선택한 요금제와 표시되는 조건을 확인하세요.</p><p>프로젝트가 준비되면 <b>SQL Editor → New query</b>를 열고 아래 SQL 전체를 붙여 넣은 후 <b>Run</b>을 누르세요. 교실·풀이 표와 사진 저장소, 접근 권한을 함께 설정하는 코드입니다. 수업용 새 프로젝트에 실행하세요.</p><button onclick="copySQL()">설정 SQL 전체 복사</button><p id="copy-result" class="small" role="status"></p><details><summary>SQL 펼쳐보기 · 복사가 안 되면 직접 선택하세요</summary><pre id="sql">-- 오답 탐정 사무소 / Supabase SQL Editor에서 한 번 실행하세요.
+-- 수업용 새 프로젝트에 적용하는 스키마입니다. 기존 앱 데이터는 삭제하지 않습니다.
+begin;
+create table if not exists public.od_classrooms (
+  code text primary key default upper(substr(replace(gen_random_uuid()::text,&#x27;-&#x27;,&#x27;&#x27;),1,8)),
+  name text not null check(length(name) between 1 and 60),
+  owner uuid not null default auth.uid() references auth.users(id),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.od_members (
+  class_code text not null references public.od_classrooms(code) on delete cascade,
+  user_id uuid not null references auth.users(id),
+  joined_at timestamptz not null default now(),
+  primary key(class_code,user_id)
+);
+create table if not exists public.od_submissions (
+  id uuid primary key default gen_random_uuid(),
+  class_code text not null references public.od_classrooms(code),
+  author uuid not null default auth.uid() references auth.users(id),
+  alias text not null check(length(alias) between 1 and 30),
+  topic text not null check(length(topic) between 1 and 40),
+  question text not null check(length(question) between 1 and 2000),
+  work text not null default &#x27;&#x27; check(length(work)&lt;=6000),
+  image_path text,
+  created_at timestamptz not null default now(),
+  reviewed boolean not null default false,
+  published boolean not null default false,
+  error text not null default &#x27;&#x27; check(length(error)&lt;=2000),
+  explanation text not null default &#x27;&#x27; check(length(explanation)&lt;=6000),
+  prompt text not null default &#x27;&#x27; check(length(prompt)&lt;=2000),
+  constraint od_has_work check(length(trim(work))&gt;0 or image_path is not null),
+  constraint od_image_owner check(image_path is null or
+    image_path like author::text || &#x27;/&#x27; || class_code || &#x27;/%&#x27;),
+  constraint od_publish_review check(not published or reviewed)
+);
+create index if not exists od_submissions_class_idx on public.od_submissions(class_code,created_at desc);
+create index if not exists od_submissions_author_idx on public.od_submissions(author,class_code);
+alter table public.od_classrooms enable row level security;
+alter table public.od_members enable row level security;
+alter table public.od_submissions enable row level security;
+
+create or replace function public.od_is_teacher(p_code text)
+returns boolean language sql stable security definer set search_path=&#x27;&#x27;
+as $$select exists(select 1 from public.od_classrooms where code=p_code and owner=auth.uid())$$;
+create or replace function public.od_is_member(p_code text)
+returns boolean language sql stable security definer set search_path=&#x27;&#x27;
+as $$select public.od_is_teacher(p_code) or exists(select 1 from public.od_members where class_code=p_code and user_id=auth.uid())$$;
+
+drop policy if exists od_room_read on public.od_classrooms;
+create policy od_room_read on public.od_classrooms for select to authenticated using(owner=auth.uid() or public.od_is_member(code));
+drop policy if exists od_room_create on public.od_classrooms;
+create policy od_room_create on public.od_classrooms for insert to authenticated with check(owner=auth.uid());
+drop policy if exists od_member_read on public.od_members;
+create policy od_member_read on public.od_members for select to authenticated using(user_id=auth.uid() or public.od_is_teacher(class_code));
+drop policy if exists od_work_read on public.od_submissions;
+create policy od_work_read on public.od_submissions for select to authenticated using(author=auth.uid() or public.od_is_teacher(class_code));
+drop policy if exists od_work_submit on public.od_submissions;
+create policy od_work_submit on public.od_submissions for insert to authenticated with check(author=auth.uid() and public.od_is_member(class_code) and not reviewed and not published);
+
+-- 교실 코드를 아는 학생만 참여할 수 있습니다.
+create or replace function public.od_join_classroom(p_code text)
+returns table(code text,name text,owner uuid) language plpgsql security definer set search_path=&#x27;&#x27;
+as $$declare v_code text:=upper(trim(p_code));begin
+  if auth.uid() is null then raise exception &#x27;로그인이 필요해요&#x27;;end if;
+  if not exists(select 1 from public.od_classrooms c where c.code=v_code) then raise exception &#x27;교실 코드를 확인해주세요&#x27;;end if;
+  insert into public.od_members(class_code,user_id) values(v_code,auth.uid()) on conflict do nothing;
+  return query select c.code,c.name,c.owner from public.od_classrooms c where c.code=v_code;
+end$$;
+
+-- 공개 해설에는 별명이나 사용자 ID를 포함하지 않습니다.
+create or replace function public.od_public_submissions(p_code text)
+returns table(id uuid,topic text,question text,work text,image_path text,created_at timestamptz,reviewed boolean,published boolean,error text,explanation text,prompt text)
+language plpgsql security definer set search_path=&#x27;&#x27;
+as $$begin
+  if not public.od_is_member(p_code) then raise exception &#x27;이 교실에 먼저 입장해주세요&#x27;;end if;
+  return query select s.id,s.topic,s.question,s.work,s.image_path,s.created_at,s.reviewed,s.published,s.error,s.explanation,s.prompt
+  from public.od_submissions s where s.class_code=p_code and s.reviewed and s.published order by s.created_at desc;
+end$$;
+
+create or replace function public.od_review(p_id uuid,p_error text,p_explanation text,p_prompt text,p_published boolean)
+returns void language plpgsql security definer set search_path=&#x27;&#x27;
+as $$declare v_code text;begin
+  select class_code into v_code from public.od_submissions where id=p_id;
+  if v_code is null or not public.od_is_teacher(v_code) then raise exception &#x27;이 교실의 선생님만 점검할 수 있어요&#x27;;end if;
+  if length(trim(coalesce(p_error,&#x27;&#x27;)))=0 or length(trim(coalesce(p_explanation,&#x27;&#x27;)))=0 then raise exception &#x27;점검 내용과 해설을 입력해주세요&#x27;;end if;
+  update public.od_submissions set error=trim(p_error),explanation=trim(p_explanation),prompt=coalesce(p_prompt,&#x27;&#x27;),reviewed=true,published=coalesce(p_published,false) where id=p_id;
+end$$;
+
+create or replace function public.od_can_read_image(p_path text)
+returns boolean language sql stable security definer set search_path=&#x27;&#x27;
+as $$select exists(select 1 from public.od_submissions s where s.image_path=p_path and
+  (s.author=auth.uid() or public.od_is_teacher(s.class_code) or (s.reviewed and s.published and public.od_is_member(s.class_code))))$$;
+
+-- Table writes are deliberately limited to student input columns.
+revoke all on public.od_classrooms,public.od_members,public.od_submissions from anon,authenticated;
+grant select on public.od_classrooms,public.od_members,public.od_submissions to authenticated;
+grant insert(name) on public.od_classrooms to authenticated;
+grant insert(id,class_code,alias,topic,question,work,image_path) on public.od_submissions to authenticated;
+revoke all on function public.od_is_teacher(text),public.od_is_member(text),public.od_join_classroom(text),public.od_public_submissions(text),public.od_review(uuid,text,text,text,boolean),public.od_can_read_image(text) from public,anon,authenticated;
+grant execute on function public.od_is_teacher(text),public.od_is_member(text),public.od_join_classroom(text),public.od_public_submissions(text),public.od_review(uuid,text,text,text,boolean),public.od_can_read_image(text) to authenticated;
+
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values(&#x27;od-solutions&#x27;,&#x27;od-solutions&#x27;,false,5242880,array[&#x27;image/jpeg&#x27;,&#x27;image/png&#x27;,&#x27;image/webp&#x27;])
+on conflict(id) do update set public=false,file_size_limit=5242880,allowed_mime_types=array[&#x27;image/jpeg&#x27;,&#x27;image/png&#x27;,&#x27;image/webp&#x27;];
+drop policy if exists od_image_upload on storage.objects;
+create policy od_image_upload on storage.objects for insert to authenticated with check(
+  bucket_id=&#x27;od-solutions&#x27; and (storage.foldername(name))[1]=auth.uid()::text and public.od_is_member((storage.foldername(name))[2]));
+drop policy if exists od_image_read on storage.objects;
+create policy od_image_read on storage.objects for select to authenticated using(
+  bucket_id=&#x27;od-solutions&#x27; and ((storage.foldername(name))[1]=auth.uid()::text or public.od_can_read_image(name)));
+drop policy if exists od_image_cleanup on storage.objects;
+create policy od_image_cleanup on storage.objects for delete to authenticated using(bucket_id=&#x27;od-solutions&#x27; and (storage.foldername(name))[1]=auth.uid()::text);
+commit;
+</pre></details><p class="small">확인: 표 목록에 od_classrooms, od_members, od_submissions가 있고 Storage에 od-solutions가 있으면 정상입니다. 사진 저장소는 비공개로 유지하세요.</p></section>
+<section><h2>3. 앱 로그인 설정</h2><p>Supabase의 <b>Authentication → URL Configuration</b>에서 <b>Site URL</b>을 1단계에서 만든 GitHub Pages 주소로 설정하세요. Redirect URLs에도 같은 주소를 추가하세요.</p><p>기본 이메일 인증을 사용하면 가입 확인 메일을 먼저 인증해야 로그인됩니다. 여러 학생에게 확인 메일을 보내려면 이메일 발송 설정이 필요할 수 있습니다.</p><p><b>과제 시연만 할 때:</b> Authentication의 <b>Sign In / Providers → Email</b>에서 <b>Confirm email</b>을 끄면 확인 메일 없이 가입 후 로그인할 수 있습니다. 이 경우 이메일의 실제 소유 여부는 검증되지 않습니다. 실제 학생 운영에서는 이메일 인증과 발송 설정을 준비하세요.</p></section>
+<section><h2>4. HTML에 공유 연결 정보 담기</h2><ol><li>Supabase 프로젝트의 <b>Connect</b>에서 <b>Project URL</b>과 <b>Publishable key</b>를 복사하세요. 키는 Settings → API Keys에서도 확인할 수 있어요. 기존 프로젝트라면 <b>anon public</b> 키도 사용할 수 있습니다.</li><li>GitHub Pages 앱을 열고 화면 위의 <b>공유 저장소 연결</b>을 누르세요.</li><li>URL과 공개 키를 붙여 넣으세요. <b>secret</b> 키나 <b>service_role</b> 키를 넣으면 안 됩니다. 앱도 이 키들은 받지 않도록 만들었습니다.</li><li><b>GitHub용 파일 다운로드</b>를 누르고 받은 파일을 파일 앱에 저장하세요. 이름이 <code>index (1).html</code>처럼 바뀌었으면 <code>index.html</code>로 바꾸세요.</li><li>GitHub 저장소에서 <b>Add file → Upload files</b>로 이 새 파일을 업로드하고 기존 <code>index.html</code>을 교체한 뒤 Commit changes를 누르세요.</li><li>게시가 끝나면 같은 Pages 주소를 새로고침하세요. 상단에 <b>온라인 공유 저장소 연결됨</b>이 표시돼야 합니다.</li></ol><p class="note">‘이 기기에 연결’만 누르면 내 핸드폰에만 적용됩니다. 교수님과 학생에게도 같은 설정이 적용되려면 반드시 <b>GitHub용 파일 다운로드 → GitHub에 교체 업로드</b>를 완료하세요.</p></section>
+<section><h2>5. 서로 다른 기기로 실제 공유 확인</h2><ol><li>선생님 기기에서 앱 상단의 <b>로그인 · 가입</b>으로 가입·로그인하세요.</li><li><b>선생님 · 실제 교실 만들기</b>를 열고 교실 이름을 입력하세요. 만들어진 <b>8자리 교실 코드</b>를 학생에게 알려주세요.</li><li>학생은 다른 기기에서 동일한 GitHub 링크를 열고 <b>자기 계정</b>으로 가입·로그인하세요. 교실 코드로 입장하고 풀이 글 또는 사진을 제출하세요.</li><li>선생님은 <b>선생님 점검실 → 새로고침</b>에서 풀이를 열고 오류·해설을 작성하세요. 다른 학생에게 보이게 하려면 <b>공개 체크박스</b>를 켜고 점검을 저장하세요.</li><li>다른 학생도 같은 교실 코드로 입장한 뒤 <b>함께 보는 해설 → 새로고침</b>을 눌러 해설을 확인하세요. 비공개 점검 결과는 제출 학생과 해당 교실 선생님만 볼 수 있습니다.</li></ol><p class="small">사진 표시가 안 되면 새로고침해보세요. 체험 교실 기록은 한 기기에만 저장되고, 실제 교실은 계정과 온라인 저장소에 저장됩니다.</p></section>
+<section><h2>6. 교수님께 제출</h2><p><b>GitHub 저장소 주소가 아닌 GitHub Pages 실행 주소</b>를 제출하세요. 로그인하지 않은 브라우저에서도 예시 6개와 해설이 보이는지 확인하세요. 교수님은 설치 없이 확인할 수 있고, 직접 풀이 제출을 체험하려면 사이트 안에서 가입·로그인하면 됩니다.</p><p>이 파일의 예시·체험 기능과 코드 문법은 확인했고, 설정 SQL은 PostgreSQL 환경에서 권한 테스트를 통과했습니다. 은진이의 실제 Supabase 프로젝트는 아직 연결되지 않았으므로, 실제 기기 간 공유는 위 설정 후 5단계로 확인해야 합니다.</p></section>
+<p class="small">공식 안내: <a href="https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site">GitHub Pages 설정</a> · <a href="https://supabase.com/docs/guides/getting-started/api-keys">Supabase 공개 키</a> · <a href="https://supabase.com/docs/guides/auth/passwords">이메일·비밀번호 로그인</a> · <a href="https://supabase.com/docs/guides/database/postgres/row-level-security">데이터 접근 권한</a></p><script>async function copySQL(){const text=document.getElementById('sql').textContent;try{await navigator.clipboard.writeText(text);document.getElementById('copy-result').textContent='복사했어요! SQL Editor에 붙여 넣으세요.'}catch{const range=document.createRange();range.selectNodeContents(document.getElementById('sql'));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);document.getElementById('copy-result').textContent='SQL을 펼친 후 내용을 길게 눌러 전체 선택·복사해주세요.'}}</script></body></html>
